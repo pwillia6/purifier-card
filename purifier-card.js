@@ -29,7 +29,7 @@
  *   for anything not configured (or not present on the entity).
  */
 
-const VERSION = "1.1.0";
+const VERSION = "1.2.0";
 
 const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
 const isNA = (s) => !s || s.state === "unavailable" || s.state === "unknown";
@@ -77,6 +77,8 @@ class PurifierCard extends HTMLElement {
     this._showExtra = false;   // "other entities" popup open?
     this._extraIds = null;     // null = not fetched yet; [] = fetched, none left
     this._extraErr = null;     // set if device-registry lookup isn't available/permitted
+    this._pending = {};        // optimistic speed value while a set_percentage call is in flight
+    this._timers = {};
   }
 
   setConfig(config) {
@@ -107,6 +109,10 @@ class PurifierCard extends HTMLElement {
   set hass(hass) { this._hass = hass; this._render(); }
 
   _call(domain, service, data) { this._hass.callService(domain, service, data); }
+  _debounced(key, fn, ms = 450) {
+    clearTimeout(this._timers[key]);
+    this._timers[key] = setTimeout(() => { delete this._pending[key]; fn(); }, ms);
+  }
   _moreInfo(entityId) {
     this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId }, bubbles: true, composed: true }));
   }
@@ -165,6 +171,15 @@ class PurifierCard extends HTMLElement {
       if (modes.length < 2) { this._moreInfo(cfg.fan); return; }
       const next = modes[(modes.indexOf(fan.attributes.preset_mode) + 1) % modes.length];
       this._call("fan", "set_preset_mode", { entity_id: cfg.fan, preset_mode: next });
+    } else if (act === "speed") {
+      if (isNA(fan) || !(fan.attributes.supported_features & 1)) return;
+      const dir = Number(el.dataset.dir);
+      const step = fan.attributes.percentage_step || 10;
+      const base = this._pending[cfg.fan] ?? fan.attributes.percentage ?? 0;
+      const val = clamp(base + dir * step, 0, 100);
+      this._pending[cfg.fan] = val;
+      this._render();
+      this._debounced(cfg.fan, () => this._call("fan", "set_percentage", { entity_id: cfg.fan, percentage: val }));
     } else if (act === "led" || act === "lock") {
       const key = act === "led" ? "led" : "child_lock";
       const s = this._s(key);
@@ -220,7 +235,8 @@ class PurifierCard extends HTMLElement {
 
     const presetModes = fan.attributes.preset_modes || [];
     const presetMode = fan.attributes.preset_mode;
-    const pct = fan.attributes.percentage;
+    const canSetSpeed = !fanNA && on && !!(fan.attributes.supported_features & 1);
+    const pct = this._pending[cfg.fan] ?? fan.attributes.percentage;
 
     const led = this._s("led");
     const lock = this._s("child_lock");
@@ -303,7 +319,13 @@ class PurifierCard extends HTMLElement {
               ${presetModes.length ? `<button class="chip ${presetModes.length > 1 ? "tappable" : ""}" data-act="preset">
                    <ha-icon icon="mdi:autorenew"></ha-icon>${cap(presetMode || "—")}
                  </button>` : ""}
-              ${pct != null ? `<span class="chip static"><ha-icon icon="mdi:speedometer"></ha-icon>${Math.round(pct)}%</span>` : ""}
+              ${canSetSpeed
+                ? `<span class="chip stepper">
+                     <button data-act="speed" data-dir="-1" title="Slower"><ha-icon icon="mdi:minus"></ha-icon></button>
+                     <ha-icon icon="mdi:speedometer"></ha-icon><span>${pct != null ? Math.round(pct) : 0}%</span>
+                     <button data-act="speed" data-dir="1" title="Faster"><ha-icon icon="mdi:plus"></ha-icon></button>
+                   </span>`
+                : (pct != null ? `<span class="chip static"><ha-icon icon="mdi:speedometer"></ha-icon>${Math.round(pct)}%</span>` : "")}
               ${led ? `<button class="chip ${isNA(led) ? "" : "tappable"} ${led.state === "on" ? "on" : ""}" data-act="led">
                    <ha-icon icon="mdi:led-outline"></ha-icon>LED
                  </button>` : ""}
@@ -404,6 +426,14 @@ const STYLE = `
 .chip.tappable { cursor:pointer; }
 .chip.static { cursor:default; }
 .chip.on { background: var(--state-icon-color, #f5a623); color: var(--text-primary-color, #fff); }
+.chip.stepper { gap:4px; padding: 3px 3px 3px 10px; }
+.chip.stepper span { min-width: 30px; text-align:center; }
+.chip.stepper button {
+  width:20px; height:20px; border-radius:50%; border:none; cursor:pointer; flex:0 0 auto;
+  background: var(--card-background-color, #fff); color: var(--primary-text-color);
+  display:flex; align-items:center; justify-content:center;
+}
+.chip.stepper button ha-icon { --mdc-icon-size:13px; }
 
 .foot { display:flex; align-items:center; gap:10px; margin-top:14px; flex-wrap:wrap; }
 .frow {

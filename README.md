@@ -47,7 +47,7 @@ expose), so it works for purifiers with fewer sensors too.
 
 | Key | Entity domain | What it drives |
 |---|---|---|
-| `fan` | `fan.*` | Power toggle, preset-mode chip, speed % chip, the subtitle line |
+| `fan` | `fan.*` | Power toggle; preset-mode chip (tap to cycle, if the fan has more than one preset); speed chip — becomes a `− NN% +` stepper calling `fan.set_percentage` when the entity supports `SET_SPEED`, otherwise a static readout; the subtitle line |
 | `pm25` | `sensor.*` | The centre gauge number + ring |
 | `air_quality` | `sensor.*` | Gauge colour/fill and the coloured label (falls back to generic PM2.5 bands if omitted) |
 | `fan_speed` | `sensor.*` | Shown in the subtitle |
