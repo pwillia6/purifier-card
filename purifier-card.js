@@ -29,7 +29,7 @@
  *   for anything not configured (or not present on the entity).
  */
 
-const VERSION = "1.0.0";
+const VERSION = "1.1.0";
 
 const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
 const isNA = (s) => !s || s.state === "unavailable" || s.state === "unknown";
@@ -74,6 +74,9 @@ class PurifierCard extends HTMLElement {
     style.textContent = STYLE;
     this.shadowRoot.append(style, this._root);
     this._bound = false;
+    this._showExtra = false;   // "other entities" popup open?
+    this._extraIds = null;     // null = not fetched yet; [] = fetched, none left
+    this._extraErr = null;     // set if device-registry lookup isn't available/permitted
   }
 
   setConfig(config) {
@@ -112,6 +115,40 @@ class PurifierCard extends HTMLElement {
     return eid ? this._hass.states[eid] : undefined;
   }
 
+  // Discover every entity on the same device as `fan` and remember which
+  // ones aren't already configured as a card field - those are what the
+  // "other entities" popup lists. Fetched once per card (needs registry
+  // read access, i.e. an admin user); fails quietly otherwise.
+  async _ensureExtraEntities() {
+    if (this._extraIds !== null || this._extraErr) return;
+    if (typeof this._hass.callWS !== "function") {
+      this._extraErr = "Not available in this frontend.";
+      this._render();
+      return;
+    }
+    try {
+      const self = await this._hass.callWS({
+        type: "config/entity_registry/get",
+        entity_id: this._config.fan,
+      });
+      const deviceId = self.device_id;
+      if (!deviceId) {
+        this._extraIds = [];
+        this._render();
+        return;
+      }
+      const all = await this._hass.callWS({ type: "config/entity_registry/list" });
+      const configured = new Set(Object.values(this._config).filter((v) => typeof v === "string" && v.includes(".")));
+      this._extraIds = all
+        .filter((e) => e.device_id === deviceId && !configured.has(e.entity_id))
+        .map((e) => e.entity_id)
+        .sort();
+    } catch (err) {
+      this._extraErr = "Couldn't list related entities (admin access required).";
+    }
+    this._render();
+  }
+
   _onClick(e) {
     const el = e.target.closest("[data-act]");
     if (!el) return;
@@ -144,7 +181,16 @@ class PurifierCard extends HTMLElement {
     } else if (act === "more") {
       const eid = el.dataset.entity;
       if (eid) this._moreInfo(eid);
+    } else if (act === "extra") {
+      this._showExtra = true;
+      this._render();
+      this._ensureExtraEntities();
+    } else if (act === "extra-close") {
+      this._showExtra = false;
+      this._render();
     }
+    // act === "stop" (clicks inside the popup panel): intentionally no-op,
+    // it only exists so those clicks don't bubble to the backdrop's "extra-close"
   }
 
   _render() {
@@ -202,6 +248,25 @@ class PurifierCard extends HTMLElement {
 
     const subParts = [presetMode ? `Preset: ${cap(presetMode)}` : null, speedText].filter(Boolean);
 
+    let extraBody;
+    if (this._extraErr) {
+      extraBody = `<div class="mnote">${this._extraErr}</div>`;
+    } else if (this._extraIds === null) {
+      extraBody = `<div class="mnote">Loading…</div>`;
+    } else if (!this._extraIds.length) {
+      extraBody = `<div class="mnote">Nothing else on this device.</div>`;
+    } else {
+      extraBody = this._extraIds.map((eid) => {
+        const s = hass.states[eid];
+        const label = cap(eid.split(".").slice(1).join(" "));
+        const val = s ? `${s.state}${s.attributes?.unit_of_measurement ? " " + s.attributes.unit_of_measurement : ""}`
+                      : "no state (disabled)";
+        return `<button class="mrow" data-act="more" data-entity="${eid}">
+            <span class="mname">${label}</span><span class="mval">${val}</span>
+          </button>`;
+      }).join("");
+    }
+
     this._root.innerHTML = `
       <div class="pcard ${fanNA ? "na" : ""}">
         <div class="head">
@@ -210,6 +275,9 @@ class PurifierCard extends HTMLElement {
             <div class="name">${name}</div>
             <div class="sub">${fanNA ? "Unavailable" : (subParts.join(" · ") || (on ? "On" : "Off"))}</div>
           </div>
+          <button class="iconbtn" data-act="extra" title="Other entities on this device">
+            <ha-icon icon="mdi:dots-horizontal"></ha-icon>
+          </button>
           <button class="pwr ${on ? "on" : ""}" data-act="power" title="Toggle power">
             <ha-icon icon="mdi:power"></ha-icon>
           </button>
@@ -259,6 +327,17 @@ class PurifierCard extends HTMLElement {
              </button>` : ""}
           ${idS ? `<button class="iconbtn" data-act="identify" title="Identify"><ha-icon icon="mdi:crosshairs-gps"></ha-icon></button>` : ""}
         </div>
+
+        <div class="backdrop ${this._showExtra ? "show" : ""}" data-act="extra-close">
+          <div class="modal" data-act="stop">
+            <div class="mtitle">
+              <ha-icon icon="mdi:devices"></ha-icon>
+              <span>Other ${name} entities</span>
+              <button class="mclose" data-act="extra-close" title="Close"><ha-icon icon="mdi:close"></ha-icon></button>
+            </div>
+            <div class="mbody">${extraBody}</div>
+          </div>
+        </div>
       </div>`;
 
     if (!this._bound) {
@@ -275,6 +354,7 @@ const STYLE = `
 * { box-sizing:border-box; }
 .pcard {
   container-type: inline-size;
+  position: relative;
   background: var(--ha-card-background, var(--card-background-color, #fff));
   border-radius: var(--ha-card-border-radius, 12px);
   border: var(--ha-card-border-width, 1px) solid var(--ha-card-border-color, var(--divider-color, #e0e0e0));
@@ -282,6 +362,7 @@ const STYLE = `
   color: var(--primary-text-color);
   font-family: var(--paper-font-body1_-_font-family, inherit);
   padding: 14px 16px 12px;
+  min-height: 170px;
 }
 .pcard.err { color: var(--error-color, #db4437); }
 .pcard.na { opacity: .55; }
@@ -340,6 +421,46 @@ const STYLE = `
 }
 .iconbtn ha-icon { --mdc-icon-size:16px; }
 .iconbtn.warn { background: color-mix(in srgb, var(--error-color, #db4437) 18%, transparent); color: var(--error-color, #db4437); }
+
+/* "other entities" popup - an overlay scoped to the card itself, not the viewport */
+.backdrop {
+  position: absolute; inset: 0; z-index: 5;
+  display: flex; align-items: center; justify-content: center; padding: 10px;
+  background: rgba(0,0,0,.4);
+  border-radius: inherit;
+  opacity: 0; pointer-events: none; transition: opacity .12s ease;
+}
+.backdrop.show { opacity: 1; pointer-events: auto; }
+.modal {
+  width: 100%; max-height: 100%; display: flex; flex-direction: column;
+  background: var(--ha-card-background, var(--card-background-color, #fff));
+  color: var(--primary-text-color);
+  border-radius: 10px; box-shadow: 0 6px 20px rgba(0,0,0,.3);
+  overflow: hidden;
+}
+.mtitle {
+  display:flex; align-items:center; gap:8px; padding:10px 12px;
+  border-bottom: 1px solid var(--divider-color, #e0e0e0); font-size:13px; font-weight:500;
+}
+.mtitle ha-icon { --mdc-icon-size:18px; color: var(--secondary-text-color); }
+.mtitle span { flex:1 1 auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.mclose {
+  width:26px; height:26px; border-radius:50%; border:none; cursor:pointer; flex:0 0 auto;
+  background: var(--secondary-background-color, #eee); color: var(--secondary-text-color);
+  display:flex; align-items:center; justify-content:center;
+}
+.mclose ha-icon { --mdc-icon-size:14px; }
+.mbody { overflow-y: auto; padding: 4px 0; }
+.mnote { padding: 14px 12px; font-size: 12.5px; color: var(--secondary-text-color); }
+.mrow {
+  display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%;
+  padding: 9px 12px; border:none; background:none; cursor:pointer; text-align:left;
+  color: var(--primary-text-color); font-size: 12.5px;
+  border-bottom: 1px solid var(--divider-color, #e0e0e0);
+}
+.mrow:last-child { border-bottom: none; }
+.mname { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.mval { color: var(--secondary-text-color); flex: 0 0 auto; }
 
 @container (max-width: 300px) {
   .body { flex-direction:column; align-items:flex-start; }
