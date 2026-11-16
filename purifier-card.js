@@ -29,7 +29,7 @@
  *   for anything not configured (or not present on the entity).
  */
 
-const VERSION = "1.2.0";
+const VERSION = "1.2.1";
 
 const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
 const isNA = (s) => !s || s.state === "unavailable" || s.state === "unknown";
@@ -187,7 +187,7 @@ class PurifierCard extends HTMLElement {
       this._call("switch", "toggle", { entity_id: cfg[key] });
     } else if (act === "update") {
       const s = this._s("update");
-      if (!s) return;
+      if (!s || s.attributes.in_progress) return;
       this._call("update", "install", { entity_id: cfg.update });
     } else if (act === "identify") {
       const s = this._s("identify");

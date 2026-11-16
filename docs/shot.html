@@ -1,0 +1,69 @@
+<!doctype html><html><head><meta charset="utf-8"><title>shot</title>
+<style>
+  html,body{margin:0;background:#eef0f2}
+  #wrap{width:420px;padding:24px;box-sizing:border-box}
+  :root{ --card-background-color:#fff; --primary-text-color:#1c1c1c; --secondary-text-color:#6b7280;
+         --secondary-background-color:#eceff1; --divider-color:#e0e0e0; --state-icon-color:#f5a623;
+         --text-primary-color:#fff; --error-color:#db4437; }
+</style></head>
+<body><div id="wrap"><div id="host"></div></div>
+<script>
+const P = {
+ "mdi:air-purifier":"M12,3C13.11,3 14,3.9 14,5V7H13V17C13,18.11 12.11,19 11,19H10V21H8V19H7C5.89,19 5,18.11 5,17V7H4V5C4,3.9 4.89,3 6,3H12M6,5V7H12V5H6M9,9A1,1 0 0,0 8,10A1,1 0 0,0 9,11A1,1 0 0,0 10,10A1,1 0 0,0 9,9M18,9V11H21V9H18M17,13V15H21V13H17Z",
+ "mdi:power":"M16.56,5.44L15.11,6.89C16.84,7.94 18,9.83 18,12A6,6 0 0,1 12,18A6,6 0 0,1 6,12C6,9.83 7.16,7.94 8.88,6.88L7.44,5.44C5.36,6.88 4,9.28 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12C20,9.28 18.64,6.88 16.56,5.44M13,3H11V13H13V3Z",
+ "mdi:autorenew":"M12,6V9L16,5L12,1V4A8,8 0 0,0 4,12C4,13.57 4.46,15.03 5.24,16.26L6.7,14.8C6.25,13.97 6,13 6,12A6,6 0 0,1 12,6M18.76,7.74L17.3,9.2C17.74,10.04 18,11 18,12A6,6 0 0,1 12,18V15L8,19L12,23V20A8,8 0 0,0 20,12C20,10.43 19.54,8.97 18.76,7.74Z",
+ "mdi:speedometer":"M12,16A3,3 0 0,1 9,13C9,11.5 10,10.2 11.5,10M12,16A3,3 0 0,0 15,13C15,11.5 14,10.2 12.5,10M12,16V17M12,3C16.97,3 21,7.03 21,12C21,14.39 20.07,16.56 18.54,18.18C18.19,18.55 17.6,18.56 17.24,18.18C16.87,17.81 16.87,17.21 17.24,16.85C18.46,15.57 19.2,13.87 19.2,12C19.2,8.03 15.97,4.8 12,4.8C8.03,4.8 4.8,8.03 4.8,12C4.8,13.87 5.54,15.57 6.76,16.85C7.13,17.21 7.13,17.81 6.76,18.18C6.4,18.56 5.81,18.55 5.46,18.18C3.93,16.56 3,14.39 3,12C3,7.03 7.03,3 12,3Z",
+ "mdi:minus":"M19,13H5V11H19V13Z",
+ "mdi:plus":"M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z",
+ "mdi:led-outline":"M9,2V4H15V2H9M12,6A7,7 0 0,0 5,13C5,15.38 6.19,17.47 8,18.74V22H16V18.74C17.81,17.47 19,15.38 19,13A7,7 0 0,0 12,6Z",
+ "mdi:lock":"M12,17A2,2 0 0,0 14,15C14,13.89 13.1,13 12,13A2,2 0 0,0 10,15A2,2 0 0,0 12,17M18,8A2,2 0 0,1 20,10V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V10C4,8.89 4.9,8 6,8H7V6A5,5 0 0,1 12,1A5,5 0 0,1 17,6V8H18M12,3A3,3 0 0,0 9,6V8H15V6A3,3 0 0,0 12,3Z",
+ "mdi:lock-open-variant":"M12,17A2,2 0 0,0 14,15C14,13.89 13.1,13 12,13A2,2 0 0,0 10,15A2,2 0 0,0 12,17M18,8A2,2 0 0,1 20,10V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V10A2,2 0 0,1 6,8H15V6A3,3 0 0,0 12,3A3,3 0 0,0 9,6H7A5,5 0 0,1 12,1A5,5 0 0,1 17,6V8H18Z",
+ "mdi:air-filter":"M20.54,5.23L19.15,3.55C18.88,3.21 18.47,3 18,3H6C5.53,3 5.12,3.21 4.84,3.55L3.46,5.23C3.17,5.57 3,6 3,6.5V11C3,13.97 5.03,16 8,16H16C18.97,16 21,13.97 21,11V6.5C21,6 20.83,5.57 20.54,5.23M14,21H10V18H14V21Z",
+ "mdi:crosshairs-gps":"M12,8A4,4 0 0,1 16,12A4,4 0 0,1 12,16A4,4 0 0,1 8,12A4,4 0 0,1 12,8M3.05,13H1V11H3.05C3.5,6.83 6.83,3.5 11,3.05V1H13V3.05C17.17,3.5 20.5,6.83 20.95,11H23V13H20.95C20.5,17.17 17.17,20.5 13,20.95V23H11V20.95C6.83,20.5 3.5,17.17 3.05,13M12,5A7,7 0 0,0 5,12A7,7 0 0,0 12,19A7,7 0 0,0 19,12A7,7 0 0,0 12,5Z",
+ "mdi:dots-horizontal":"M16,12A2,2 0 0,1 18,10A2,2 0 0,1 20,12A2,2 0 0,1 18,14A2,2 0 0,1 16,12M10,12A2,2 0 0,1 12,10A2,2 0 0,1 14,12A2,2 0 0,1 12,14A2,2 0 0,1 10,12M4,12A2,2 0 0,1 6,10A2,2 0 0,1 8,12A2,2 0 0,1 6,14A2,2 0 0,1 4,12Z",
+ "mdi:calendar-clock":"M15,13H16.5V15.82L18.94,17.23L18.19,18.53L15,16.69V13M19,8H5V19H9.67C9.24,18.09 9,17.07 9,16A7,7 0 0,1 16,9C17.07,9 18.09,9.24 19,9.67V8M5,21C3.89,21 3,20.1 3,19V5C3,3.89 3.89,3 5,3H6V1H8V3H16V1H18V3H19A2,2 0 0,1 21,5V11.1C22.24,12.36 23,14.09 23,16A7,7 0 0,1 16,23C14.09,23 12.36,22.24 11.1,21H5M16,11.15A4.85,4.85 0 0,0 11.15,16C11.15,18.68 13.32,20.85 16,20.85A4.85,4.85 0 0,0 20.85,16C20.85,13.32 18.68,11.15 16,11.15Z",
+};
+class HaIcon extends HTMLElement{
+  static get observedAttributes(){return["icon"]}
+  connectedCallback(){this._r()} attributeChangedCallback(){this._r()}
+  _r(){
+    const s=getComputedStyle(this).getPropertyValue("--mdc-icon-size").trim()||"24px";
+    this.style.display="inline-flex";this.style.width=s;this.style.height=s;
+    this.innerHTML=`<svg viewBox="0 0 24 24" width="100%" height="100%" fill="currentColor"><path d="${P[this.getAttribute("icon")]||""}"/></svg>`;
+  }
+}
+customElements.define("ha-icon",HaIcon);
+</script>
+<script type="module">
+import "../purifier-card.js";
+const mock = {
+  states: {
+    "fan.master_room_purifier": { state:"on", attributes:{ preset_modes:["auto"], preset_mode:"auto",
+      percentage:33, percentage_step:11.11, supported_features:57, friendly_name:"Living Room Purifier" } },
+    "sensor.master_room_purifier_pm25": { state:"7", attributes:{ unit_of_measurement:"µg/m³" } },
+    "sensor.master_room_purifier_air_quality": { state:"good", attributes:{} },
+    "sensor.master_room_purifier_fan_speed": { state:"3", attributes:{} },
+    "switch.master_room_purifier_led_enable": { state:"on", attributes:{} },
+    "switch.master_room_purifier_child_lock": { state:"off", attributes:{} },
+    "binary_sensor.master_room_purifier_replace_filter": { state:"off", attributes:{} },
+    "sensor.master_room_purifier_filter_age": { state:"42", attributes:{ unit_of_measurement:"d" } },
+    "sensor.master_room_purifier_device_age": { state:"unknown", attributes:{} },
+    "update.master_room_purifier": { state:"off", attributes:{} },
+    "button.master_room_purifier_identify": { state:"unknown", attributes:{} },
+  },
+  callService(){},
+};
+const card = document.createElement("purifier-card");
+card.setConfig({
+  type:"custom:purifier-card", name:"Living Room Purifier",
+  fan:"fan.master_room_purifier", pm25:"sensor.master_room_purifier_pm25",
+  air_quality:"sensor.master_room_purifier_air_quality", fan_speed:"sensor.master_room_purifier_fan_speed",
+  led:"switch.master_room_purifier_led_enable", child_lock:"switch.master_room_purifier_child_lock",
+  replace_filter:"binary_sensor.master_room_purifier_replace_filter", filter_age:"sensor.master_room_purifier_filter_age",
+  device_age:"sensor.master_room_purifier_device_age", update:"update.master_room_purifier",
+  identify:"button.master_room_purifier_identify",
+});
+card.hass = mock;
+document.getElementById("host").appendChild(card);
+</script>
+</body></html>

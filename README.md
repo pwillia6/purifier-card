@@ -2,17 +2,31 @@
 
 A compact, graphical Lovelace card for an air purifier — fan power/preset,
 a PM2.5 gauge coloured by air quality, LED/child-lock toggles, filter status
-and a firmware-update button, all in one small card. Built for devices
-exposed via Zigbee2MQTT (one `fan` entity plus several sibling sensors/
-switches), but every field beyond `fan` is optional.
+and a firmware-update button, all in one small card.
+
+Built and tested against the **IKEA STARKVIND air purifier** (model `E2007`)
+exposed via Zigbee2MQTT — one `fan` entity plus the sibling `pm25`,
+`air_quality`, `fan_speed`, `led_enable`, `child_lock`, `replace_filter`,
+`filter_age` and `device_age` entities it creates. Every field beyond `fan`
+is optional, though, so it should work for any similarly-exposed purifier,
+Zigbee2MQTT or otherwise.
 
 Vanilla JS, no dependencies, no build step — uses Home Assistant's built-in
 `<ha-icon>` and its theme CSS variables, so it follows your dashboard's
 light/dark theme automatically.
 
+![Purifier Card](docs/preview.png)
+
 ## Install
 
-### HACS (custom repository)
+### Home Assistant 2026.11+ (Marketplace)
+
+1. **Settings → Marketplace** → search **Purifier Card** → install.
+   (Not listed yet? ⋮ → **Custom repositories** → `pwillia6/purifier-card`,
+   category **Dashboard** → Add, then install.)
+2. Reload the browser (Ctrl/Cmd-Shift-R).
+
+### HACS (Home Assistant 2026.10 and older)
 
 1. HACS → ⋮ → **Custom repositories** → `pwillia6/purifier-card`, type **Dashboard** → Add
 2. Find **Purifier Card** → **Download**
@@ -58,6 +72,14 @@ expose), so it works for purifiers with fewer sensors too.
 | `device_age` | `sensor.*` | Small footer text (hidden when `unknown`) |
 | `update` | `update.*` | Red download button in the footer, shown only when an update is available; tap installs it |
 | `identify` | `button.*` | Footer button that presses it |
+
+## Development
+
+```bash
+# serve the repo and open the preview (mock hass, ha-icon stubbed with real MDI paths)
+python3 -m http.server 8899
+open http://localhost:8899/docs/shot.html
+```
 
 ## License
 
